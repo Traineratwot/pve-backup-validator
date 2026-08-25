@@ -1,0 +1,109 @@
+import type { ClassifiedGuest } from "./schemas.js";
+import { BACKUP_TARGET, SCHEDULE } from "./config.js";
+
+interface JobDefinition {
+  id: string;
+  comment: string;
+  schedule: string;
+  mode: string;
+  vmids: string[];
+  storage: string;
+  compress: string;
+  notesTemplate: string;
+  notificationMode: string;
+  repeatMissed: boolean;
+  fleecing?: string;
+}
+
+function generateJobId(): string {
+  const hex = Array.from({ length: 8 }, () =>
+    Math.floor(Math.random() * 16).toString(16)
+  ).join("");
+  return `backup-validator-${hex}`;
+}
+
+function buildJobs(guests: ClassifiedGuest[]): JobDefinition[] {
+  const snapshotGuests = guests.filter((g) => g.mode === "snapshot");
+  const stopGuests = guests.filter((g) => g.mode === "stop");
+
+  const jobs: JobDefinition[] = [];
+
+  if (snapshotGuests.length > 0) {
+    jobs.push({
+      id: generateJobId(),
+      comment: "BACKUP-SNAPSHOT (auto-generated)",
+      schedule: SCHEDULE.snapshot,
+      mode: "snapshot",
+      vmids: snapshotGuests.map((g) => g.vmid),
+      storage: BACKUP_TARGET,
+      compress: "zstd",
+      notesTemplate: "{{node}} {{vmid}} {{guestname}}",
+      notificationMode: "notification-system",
+      repeatMissed: true,
+      fleecing: "1,storage=storage",
+    });
+  }
+
+  if (stopGuests.length > 0) {
+    jobs.push({
+      id: generateJobId(),
+      comment: "BACKUP-STOP (auto-generated)",
+      schedule: SCHEDULE.stop,
+      mode: "stop",
+      vmids: stopGuests.map((g) => g.vmid),
+      storage: BACKUP_TARGET,
+      compress: "zstd",
+      notesTemplate: "{{node}} {{vmid}} {{guestname}}",
+      notificationMode: "notification-system",
+      repeatMissed: true,
+    });
+  }
+
+  return jobs;
+}
+
+function jobToConfig(job: JobDefinition): string {
+  const lines = [
+    `vzdump: ${job.id}`,
+    `\tcomment ${job.comment}`,
+    `\tschedule ${job.schedule}`,
+    `\tcompress ${job.compress}`,
+    `\tenabled 1`,
+    `\tmode ${job.mode}`,
+    `\tnotes-template ${job.notesTemplate}`,
+    `\tnotification-mode ${job.notificationMode}`,
+    `\trepeat-missed ${job.repeatMissed ? 1 : 0}`,
+    `\tstorage ${job.storage}`,
+    `\tvmid ${job.vmids.join(",")}`,
+  ];
+
+  if (job.fleecing) {
+    lines.splice(6, 0, `\tfleecing ${job.fleecing}`);
+  }
+
+  return lines.join("\n");
+}
+
+export function generateJobsCfg(guests: ClassifiedGuest[]): string {
+  const jobs = buildJobs(guests);
+  return jobs.map(jobToConfig).join("\n\n") + "\n";
+}
+
+export function summarizeJobs(guests: ClassifiedGuest[]): string {
+  const snapshot = guests.filter((g) => g.mode === "snapshot");
+  const stop = guests.filter((g) => g.mode === "stop");
+
+  const lines = [
+    `Snapshot backup (${snapshot.length} guests):`,
+    ...snapshot.map(
+      (g) => `  ${g.vmid.padEnd(5)} ${g.hostname.padEnd(25)} [${g.node}] ${g.reason}`
+    ),
+    "",
+    `Stop backup (${stop.length} guests):`,
+    ...stop.map(
+      (g) => `  ${g.vmid.padEnd(5)} ${g.hostname.padEnd(25)} [${g.node}] ${g.reason}`
+    ),
+  ];
+
+  return lines.join("\n");
+}

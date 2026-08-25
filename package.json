@@ -1,0 +1,12 @@
+{
+  "name": "pve-backup-validator",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile pve-backup-validator"
+  },
+  "dependencies": {
+    "valibot": "^1.0.0"
+  }
+}
