@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --compile --outfile pve-backup-validator"
+    "install:cron": "bun run src/install.ts",
+    "uninstall:cron": "bun run src/uninstall.ts"
   },
   "dependencies": {
     "valibot": "^1.0.0"

@@ -42,7 +42,7 @@ async function getAllGuests(): Promise<GuestRef[]> {
   return guests;
 }
 
-async function main() {
+export async function main() {
   log("=== PVE Backup Validator started ===");
 
   const guestList = await getAllGuests();
@@ -89,7 +89,10 @@ async function main() {
   log("=== Done ===");
 }
 
-main().catch((err) => {
-  log(`ERROR: ${err.message}`);
-  process.exit(1);
-});
+// CLI entry point
+if (import.meta.main) {
+  main().catch((err) => {
+    log(`ERROR: ${err.message}`);
+    process.exit(1);
+  });
+}
