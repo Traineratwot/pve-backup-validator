@@ -29,41 +29,105 @@ This script automatically:
 
 ## Setup
 
+### 1. Install Bun
+
+If you don't have Bun installed yet:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+After installation, restart your shell or run:
+
+```bash
+source ~/.bashrc
+```
+
+Verify Bun is available:
+
+```bash
+bun --version
+```
+
+### 2. Clone the repository
+
 ```bash
 git clone https://github.com/user/pve-backup-validator.git
 cd pve-backup-validator
+```
+
+### 3. Install dependencies
+
+```bash
 bun install
+```
+
+This downloads all required packages (prompts, TypeScript types) into `node_modules/`.
+
+### 4. Run the interactive setup
+
+```bash
 bun run setup
 ```
 
-The install script will prompt for:
+The setup script will walk you through configuration and prompt for each setting:
 
 | Setting | Description | Example |
 |---------|-------------|---------|
-| PVE host | IP or hostname of the primary PVE node | `192.168.1.10` |
-| Snapshot storage | Comma-separated storage names that support snapshots | `local-zfs,fast-zfs` |
-| Backup target | Storage where backups are sent | `PBS` |
+| PVE host | IP or hostname of the primary PVE node (must be reachable via SSH with root key-based auth) | `192.168.1.10` |
+| Snapshot storage | Comma-separated storage names that support snapshots (ZFS, Ceph, etc.) | `local-zfs,fast-zfs` |
+| Backup target | Storage where backups are sent (e.g. Proxmox Backup Server) | `PBS` |
 | Snapshot time | Daily schedule for snapshot backups (HH:MM) | `03:00` |
 | Stop time | Daily schedule for stop backups (HH:MM) | `06:30` |
-| Cron job | Whether to register an hourly cron job | `y` |
+| Cron job | Whether to register an hourly cron job that checks and updates backup config automatically | `y` |
 
-Configuration is saved to `config.json` (git-ignored).
+The setup writes your answers to `config.json` (git-ignored, not committed).
+
+### 5. Run the validator
+
+```bash
+bun run start
+```
+
+This connects to the PVE node via SSH, discovers all guests, classifies them by storage type, and writes the correct `/etc/pve/jobs.cfg`.
 
 ## Usage
 
+### Main commands
+
 ```bash
-# Run once manually
+# Run once manually — classify guests and update backup jobs
 bun run start
 
 # Run tests
 bun test
 
-# Install hourly cron
+# Register hourly cron job (auto-checks backup config every hour)
 bun run install:cron
 
-# Remove cron
+# Remove cron job
 bun run uninstall:cron
+
+# Reconfigure (re-run interactive setup)
+bun run setup
 ```
+
+### What happens on each run
+
+1. The script connects to the PVE node via SSH
+2. Queries `pvesh` for all CT/VM guests in the cluster
+3. Reads each guest's rootfs/disk storage type
+4. Classifies: snapshot-capable storage → snapshot mode, everything else → stop mode
+5. Writes a fresh `/etc/pve/jobs.cfg` (overwrites previous jobs completely)
+6. Restarts the PVE scheduler to apply changes
+
+### Cron behavior
+
+When cron is enabled (`bun run install:cron`), the script runs every hour and:
+
+- Re-classifies all guests (catches new or migrated VMs)
+- Updates `/etc/pve/jobs.cfg` if anything changed
+- Job IDs are regenerated each time (random hex) — previous jobs are fully replaced
 
 ## Classification
 
