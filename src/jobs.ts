@@ -1,7 +1,7 @@
 import type { ClassifiedGuest } from "./schemas.js";
 import { loadConfig } from "./config.js";
 
-interface JobDefinition {
+export interface JobDefinition {
   id: string;
   comment: string;
   schedule: string;
@@ -14,15 +14,18 @@ interface JobDefinition {
   repeatMissed: boolean;
 }
 
-function generateJobId(): string {
+export function generateJobId(): string {
   const hex = Array.from({ length: 8 }, () =>
     Math.floor(Math.random() * 16).toString(16)
   ).join("");
   return `backup-validator-${hex}`;
 }
 
-function buildJobs(guests: ClassifiedGuest[]): JobDefinition[] {
-  const config = loadConfig();
+export function buildJobs(
+  guests: ClassifiedGuest[],
+  schedule: { snapshot: string; stop: string },
+  backupTarget: string
+): JobDefinition[] {
   const snapshotGuests = guests.filter((g) => g.mode === "snapshot");
   const stopGuests = guests.filter((g) => g.mode === "stop");
 
@@ -32,10 +35,10 @@ function buildJobs(guests: ClassifiedGuest[]): JobDefinition[] {
     jobs.push({
       id: generateJobId(),
       comment: "BACKUP-SNAPSHOT (auto-generated)",
-      schedule: config.schedule.snapshot,
+      schedule: schedule.snapshot,
       mode: "snapshot",
       vmids: snapshotGuests.map((g) => g.vmid),
-      storage: config.backupTarget,
+      storage: backupTarget,
       compress: "zstd",
       notesTemplate: "{{node}} {{vmid}} {{guestname}}",
       notificationMode: "notification-system",
@@ -47,10 +50,10 @@ function buildJobs(guests: ClassifiedGuest[]): JobDefinition[] {
     jobs.push({
       id: generateJobId(),
       comment: "BACKUP-STOP (auto-generated)",
-      schedule: config.schedule.stop,
+      schedule: schedule.stop,
       mode: "stop",
       vmids: stopGuests.map((g) => g.vmid),
-      storage: config.backupTarget,
+      storage: backupTarget,
       compress: "zstd",
       notesTemplate: "{{node}} {{vmid}} {{guestname}}",
       notificationMode: "notification-system",
@@ -61,7 +64,7 @@ function buildJobs(guests: ClassifiedGuest[]): JobDefinition[] {
   return jobs;
 }
 
-function jobToConfig(job: JobDefinition): string {
+export function jobToConfig(job: JobDefinition): string {
   const lines = [
     `vzdump: ${job.id}`,
     `\tcomment ${job.comment}`,
@@ -80,7 +83,8 @@ function jobToConfig(job: JobDefinition): string {
 }
 
 export function generateJobsCfg(guests: ClassifiedGuest[]): string {
-  const jobs = buildJobs(guests);
+  const config = loadConfig();
+  const jobs = buildJobs(guests, config.schedule, config.backupTarget);
   return jobs.map(jobToConfig).join("\n\n") + "\n";
 }
 

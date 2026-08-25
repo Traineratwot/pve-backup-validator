@@ -55,6 +55,9 @@ Configuration is saved to `config.json` (git-ignored).
 # Run once manually
 bun run start
 
+# Run tests
+bun test
+
 # Install hourly cron
 bun run install:cron
 

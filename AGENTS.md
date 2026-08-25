@@ -9,9 +9,10 @@ Bun-only (not Node). Uses `bun.lock`, `import.meta.main`, `Bun.spawn`, `Bun.cron
 - `bun install` — install deps
 - `bun run setup` — interactive setup (prompts for PVE host, storage, schedules → writes `config.json`)
 - `bun run start` — classify guests and write `/etc/pve/jobs.cfg`
+- `bun test` — run tests (mocks config, tests pure logic)
 - `bun run install:cron` / `bun run uninstall:cron` — register/remove hourly cron job
 
-No lint, typecheck, test, or formatter commands exist.
+No lint, typecheck, or formatter commands exist.
 
 ## Architecture
 

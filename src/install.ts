@@ -1,15 +1,34 @@
 import prompts from "prompts";
 import { writeFileSync } from "fs";
 import { join } from "path";
+import { execSync } from "child_process";
 
 const CONFIG_PATH = join(import.meta.dir, "..", "config.json");
 
-function timeToCron(time: string): string {
+export function timeToCron(time: string): string {
   const [h, m] = time.split(":");
   return `${parseInt(m)} ${parseInt(h)} * * *`;
 }
 
+function checkPrerequisites(): void {
+  const missing: string[] = [];
+
+  try {
+    execSync("which ssh", { stdio: "pipe" });
+  } catch {
+    missing.push("ssh");
+  }
+
+  if (missing.length > 0) {
+    console.error(`\nMissing required tools: ${missing.join(", ")}`);
+    console.error("Install them and try again.");
+    process.exit(1);
+  }
+}
+
 async function run() {
+  checkPrerequisites();
+
   console.log("=== PVE Backup Validator — Setup ===\n");
   console.log(
     "This script will configure the backup validator for your Proxmox VE cluster.\n"
@@ -96,4 +115,6 @@ async function run() {
   console.log("\nSetup complete. Run `bun run start` to execute.");
 }
 
-run();
+if (import.meta.main) {
+  run();
+}

@@ -2,13 +2,15 @@ import { pveExecSafe } from "./ssh.js";
 import { loadConfig } from "./config.js";
 import type { BackupMode, ClassifiedGuest } from "./schemas.js";
 
-function extractStorageName(ref: string): string {
+export function extractStorageName(ref: string): string {
   return ref.split(":")[0];
 }
 
-function resolveBackupMode(storageName: string): BackupMode {
-  const config = loadConfig();
-  return config.snapshotStorage.includes(storageName) ? "snapshot" : "stop";
+export function resolveBackupMode(
+  storageName: string,
+  snapshotStorage: string[]
+): BackupMode {
+  return snapshotStorage.includes(storageName) ? "snapshot" : "stop";
 }
 
 interface PveshConfig {
@@ -18,19 +20,20 @@ interface PveshConfig {
   [key: string]: any;
 }
 
-function classifyFromJson(
-  config: PveshConfig,
+export function classifyFromJson(
+  pveshConfig: PveshConfig,
   vmid: string,
   node: string,
-  type: "ct" | "vm"
+  type: "ct" | "vm",
+  snapshotStorage: string[]
 ): ClassifiedGuest {
   const hostname =
-    (type === "ct" ? config.hostname : config.name) || vmid;
+    (type === "ct" ? pveshConfig.hostname : pveshConfig.name) || vmid;
 
   if (type === "ct") {
-    const rootfs = config.rootfs || "";
+    const rootfs = pveshConfig.rootfs || "";
     const rootfsStorage = extractStorageName(rootfs);
-    const mode = resolveBackupMode(rootfsStorage);
+    const mode = resolveBackupMode(rootfsStorage, snapshotStorage);
 
     return {
       vmid,
@@ -43,7 +46,7 @@ function classifyFromJson(
     };
   }
 
-  const diskKeys = Object.keys(config).filter(
+  const diskKeys = Object.keys(pveshConfig).filter(
     (k) =>
       (k.startsWith("scsi") && k !== "scsihw") ||
       k.startsWith("ide") ||
@@ -53,7 +56,7 @@ function classifyFromJson(
 
   let storageName = "unknown";
   for (const dk of diskKeys) {
-    const ref = (config[dk] as string).split(",")[0];
+    const ref = (pveshConfig[dk] as string).split(",")[0];
     const name = extractStorageName(ref);
     if (name && name !== "none" && name !== "cdrom") {
       storageName = name;
@@ -61,7 +64,7 @@ function classifyFromJson(
     }
   }
 
-  const mode = resolveBackupMode(storageName);
+  const mode = resolveBackupMode(storageName, snapshotStorage);
   return {
     vmid,
     node,
@@ -86,7 +89,8 @@ export async function classifyGuest(
 
   try {
     const pveshConfig = JSON.parse(stdout) as PveshConfig;
-    return classifyFromJson(pveshConfig, vmid, node, type);
+    const config = loadConfig();
+    return classifyFromJson(pveshConfig, vmid, node, type, config.snapshotStorage);
   } catch {
     return null;
   }

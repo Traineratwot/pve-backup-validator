@@ -16,6 +16,16 @@ interface GuestRef {
   type: "ct" | "vm";
 }
 
+async function checkRemotePrerequisites(): Promise<void> {
+  const { ok, stderr } = await pveExecSafe("which pvesh");
+  if (!ok) {
+    throw new Error(
+      `pvesh not found on ${loadConfig().pveHost}. ` +
+        `Ensure SSH access to a Proxmox VE node. ${stderr}`
+    );
+  }
+}
+
 async function getAllGuests(): Promise<GuestRef[]> {
   const guests: GuestRef[] = [];
 
@@ -46,6 +56,8 @@ export async function main() {
   log("=== PVE Backup Validator started ===");
   log(`Host: ${config.pveHost}`);
 
+  await checkRemotePrerequisites();
+
   const guestList = await getAllGuests();
   log(`Found ${guestList.length} guests across cluster`);
 
@@ -66,14 +78,18 @@ export async function main() {
   const jobsCfg = generateJobsCfg(classified);
   const JOBS_FILE = "/etc/pve/jobs.cfg";
   await pveWriteFile(JOBS_FILE, jobsCfg);
-  log(`\nWrote ${JOBS_FILE} with ${classified.filter((g) => g.mode !== "skip").length} guests`);
+  log(
+    `\nWrote ${JOBS_FILE} with ${classified.filter((g) => g.mode !== "skip").length} guests`
+  );
 
   await pveExecSafe("pvescheduler restart 2>/dev/null");
   log("Scheduler restarted");
 
   const snapshotCount = classified.filter((g) => g.mode === "snapshot").length;
   const stopCount = classified.filter((g) => g.mode === "stop").length;
-  log(`\nSummary: ${classified.length} guests classified (${snapshotCount} snapshot, ${stopCount} stop)`);
+  log(
+    `\nSummary: ${classified.length} guests classified (${snapshotCount} snapshot, ${stopCount} stop)`
+  );
   log("=== Done ===");
 }
 
