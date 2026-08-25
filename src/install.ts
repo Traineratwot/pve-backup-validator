@@ -38,12 +38,7 @@ function checkPrerequisites(mode: "local" | "ssh"): void {
 
 function getLocalNodeName(): string | null {
   try {
-    const result = execSync(
-      'pvesh get /nodes/$(hostname)/status --output-format json 2>/dev/null',
-      { encoding: "utf-8" }
-    );
-    const data = JSON.parse(result);
-    return data?.name || null;
+    return execSync("hostname -s", { encoding: "utf-8" }).trim();
   } catch {
     return null;
   }
@@ -51,15 +46,15 @@ function getLocalNodeName(): string | null {
 
 function isLocalPrimaryNode(): boolean {
   try {
+    const localName = getLocalNodeName();
+    if (!localName) return false;
+
     const result = execSync(
       'pvesh get /cluster/resources --type node --output-format json 2>/dev/null',
       { encoding: "utf-8" }
     );
     const nodes = JSON.parse(result);
     if (!Array.isArray(nodes) || nodes.length === 0) return false;
-
-    const localName = getLocalNodeName();
-    if (!localName) return false;
 
     const localNode = nodes.find((n: any) => n.node === localName);
     return localNode?.status === "online";
