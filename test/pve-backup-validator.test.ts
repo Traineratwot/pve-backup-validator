@@ -5,7 +5,8 @@ import type { Config } from "../src/config.js";
 // --- Mock config ---
 
 const TEST_CONFIG: Config = {
-  pveHost: "10.0.0.1",
+  mode: "local",
+  localNode: "pve",
   snapshotStorage: ["local-zfs", "fast-zfs"],
   backupTarget: "PBS",
   schedule: {
@@ -32,7 +33,8 @@ import {
   generateJobsCfg,
   summarizeJobs,
 } from "../src/jobs.js";
-import { timeToCron } from "../src/install.js";
+import { timeToCron, hasTool } from "../src/install.js";
+import { localExec } from "../src/ssh.js";
 
 // --- Helpers ---
 
@@ -406,5 +408,29 @@ describe("timeToCron", () => {
 
   it("converts 0:00 to cron", () => {
     expect(timeToCron("0:00")).toBe("0 0 * * *");
+  });
+});
+
+describe("hasTool", () => {
+  it("returns true for existing tool", () => {
+    expect(hasTool("sh")).toBe(true);
+  });
+
+  it("returns false for missing tool", () => {
+    expect(hasTool("nonexistent-tool-xyz")).toBe(false);
+  });
+});
+
+describe("localExec", () => {
+  it("executes command and returns stdout", async () => {
+    const result = await localExec("echo hello");
+    expect(result.ok).toBe(true);
+    expect(result.stdout).toBe("hello");
+  });
+
+  it("returns stderr on failure", async () => {
+    const result = await localExec("cat /nonexistent-file-xyz");
+    expect(result.ok).toBe(false);
+    expect(result.stderr.length).toBeGreaterThan(0);
   });
 });

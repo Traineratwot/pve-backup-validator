@@ -2,7 +2,9 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 export interface Config {
-  pveHost: string;
+  mode: "local" | "ssh";
+  pveHost?: string;
+  localNode?: string;
   snapshotStorage: string[];
   backupTarget: string;
   schedule: {
@@ -24,7 +26,11 @@ export function loadConfig(): Config {
     return _config!;
   } catch {
     throw new Error(
-      "config.json not found. Run `bun run install` to configure the project."
+      "config.json not found. Run `bun run setup` to configure the project."
     );
   }
+}
+
+export function resetConfig(): void {
+  _config = null;
 }

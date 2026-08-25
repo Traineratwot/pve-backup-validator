@@ -16,12 +16,13 @@ interface GuestRef {
   type: "ct" | "vm";
 }
 
-async function checkRemotePrerequisites(): Promise<void> {
+async function checkPrerequisites(): Promise<void> {
+  const config = loadConfig();
   const { ok, stderr } = await pveExecSafe("which pvesh");
   if (!ok) {
+    const target = config.mode === "local" ? "this node" : config.pveHost;
     throw new Error(
-      `pvesh not found on ${loadConfig().pveHost}. ` +
-        `Ensure SSH access to a Proxmox VE node. ${stderr}`
+      `pvesh not found on ${target}. ${stderr}`
     );
   }
 }
@@ -54,9 +55,14 @@ async function getAllGuests(): Promise<GuestRef[]> {
 export async function main() {
   const config = loadConfig();
   log("=== PVE Backup Validator started ===");
-  log(`Host: ${config.pveHost}`);
 
-  await checkRemotePrerequisites();
+  if (config.mode === "local") {
+    log(`Mode: local (${config.localNode})`);
+  } else {
+    log(`Mode: SSH → ${config.pveHost}`);
+  }
+
+  await checkPrerequisites();
 
   const guestList = await getAllGuests();
   log(`Found ${guestList.length} guests across cluster`);
