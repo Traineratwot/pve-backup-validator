@@ -22,7 +22,7 @@ export function hasTool(tool: string): boolean {
 function checkPrerequisites(mode: "local" | "ssh"): void {
   const missing: string[] = [];
 
-  if (!hasTool("pvesh")) {
+  if (mode === "local" && !hasTool("pvesh")) {
     missing.push("pvesh");
   }
   if (mode === "ssh" && !hasTool("ssh")) {
