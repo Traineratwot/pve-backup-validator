@@ -1,5 +1,5 @@
 import type { ClassifiedGuest } from "./schemas.js";
-import { BACKUP_TARGET, SCHEDULE } from "./config.js";
+import { loadConfig } from "./config.js";
 
 interface JobDefinition {
   id: string;
@@ -12,7 +12,6 @@ interface JobDefinition {
   notesTemplate: string;
   notificationMode: string;
   repeatMissed: boolean;
-  fleecing?: string;
 }
 
 function generateJobId(): string {
@@ -23,6 +22,7 @@ function generateJobId(): string {
 }
 
 function buildJobs(guests: ClassifiedGuest[]): JobDefinition[] {
+  const config = loadConfig();
   const snapshotGuests = guests.filter((g) => g.mode === "snapshot");
   const stopGuests = guests.filter((g) => g.mode === "stop");
 
@@ -32,15 +32,14 @@ function buildJobs(guests: ClassifiedGuest[]): JobDefinition[] {
     jobs.push({
       id: generateJobId(),
       comment: "BACKUP-SNAPSHOT (auto-generated)",
-      schedule: SCHEDULE.snapshot,
+      schedule: config.schedule.snapshot,
       mode: "snapshot",
       vmids: snapshotGuests.map((g) => g.vmid),
-      storage: BACKUP_TARGET,
+      storage: config.backupTarget,
       compress: "zstd",
       notesTemplate: "{{node}} {{vmid}} {{guestname}}",
       notificationMode: "notification-system",
       repeatMissed: true,
-      fleecing: "1,storage=storage",
     });
   }
 
@@ -48,10 +47,10 @@ function buildJobs(guests: ClassifiedGuest[]): JobDefinition[] {
     jobs.push({
       id: generateJobId(),
       comment: "BACKUP-STOP (auto-generated)",
-      schedule: SCHEDULE.stop,
+      schedule: config.schedule.stop,
       mode: "stop",
       vmids: stopGuests.map((g) => g.vmid),
-      storage: BACKUP_TARGET,
+      storage: config.backupTarget,
       compress: "zstd",
       notesTemplate: "{{node}} {{vmid}} {{guestname}}",
       notificationMode: "notification-system",
@@ -77,10 +76,6 @@ function jobToConfig(job: JobDefinition): string {
     `\tvmid ${job.vmids.join(",")}`,
   ];
 
-  if (job.fleecing) {
-    lines.splice(6, 0, `\tfleecing ${job.fleecing}`);
-  }
-
   return lines.join("\n");
 }
 
@@ -96,12 +91,14 @@ export function summarizeJobs(guests: ClassifiedGuest[]): string {
   const lines = [
     `Snapshot backup (${snapshot.length} guests):`,
     ...snapshot.map(
-      (g) => `  ${g.vmid.padEnd(5)} ${g.hostname.padEnd(25)} [${g.node}] ${g.reason}`
+      (g) =>
+        `  ${g.vmid.padEnd(5)} ${g.hostname.padEnd(25)} [${g.node}] ${g.reason}`
     ),
     "",
     `Stop backup (${stop.length} guests):`,
     ...stop.map(
-      (g) => `  ${g.vmid.padEnd(5)} ${g.hostname.padEnd(25)} [${g.node}] ${g.reason}`
+      (g) =>
+        `  ${g.vmid.padEnd(5)} ${g.hostname.padEnd(25)} [${g.node}] ${g.reason}`
     ),
   ];
 

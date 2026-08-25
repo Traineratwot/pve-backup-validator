@@ -1,23 +1,27 @@
 import { $ } from "bun";
+import { loadConfig } from "./config.js";
 
-const PVE_HOST = "192.168.50.10";
 const SSH_OPTS = ["-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=no"];
 
+function host(): string {
+  return loadConfig().pveHost;
+}
+
 export async function sshExec(
-  host: string,
+  targetHost: string,
   command: string
 ): Promise<string> {
-  const result = await $`ssh ${SSH_OPTS} root@${host} ${command}`.text();
+  const result = await $`ssh ${SSH_OPTS} root@${targetHost} ${command}`.text();
   return result.trim();
 }
 
 export async function sshExecSafe(
-  host: string,
+  targetHost: string,
   command: string
 ): Promise<{ ok: boolean; stdout: string; stderr: string }> {
   try {
     const proc = Bun.spawn(
-      ["ssh", ...SSH_OPTS, `root@${host}`, command],
+      ["ssh", ...SSH_OPTS, `root@${targetHost}`, command],
       { stdout: "pipe", stderr: "pipe" }
     );
     const stdout = await new Response(proc.stdout).text();
@@ -30,22 +34,22 @@ export async function sshExecSafe(
 }
 
 export async function pveExec(command: string): Promise<string> {
-  return sshExec(PVE_HOST, command);
+  return sshExec(host(), command);
 }
 
 export async function pveExecSafe(
   command: string
 ): Promise<{ ok: boolean; stdout: string; stderr: string }> {
-  return sshExecSafe(PVE_HOST, command);
+  return sshExecSafe(host(), command);
 }
 
 export async function sshWriteFile(
-  host: string,
+  targetHost: string,
   remotePath: string,
   content: string
 ): Promise<boolean> {
   const proc = Bun.spawn(
-    ["ssh", ...SSH_OPTS, `root@${host}`, `cat > ${remotePath}`],
+    ["ssh", ...SSH_OPTS, `root@${targetHost}`, `cat > ${remotePath}`],
     { stdin: "pipe", stdout: "pipe", stderr: "pipe" }
   );
   proc.stdin.write(content);
@@ -58,7 +62,5 @@ export async function pveWriteFile(
   remotePath: string,
   content: string
 ): Promise<boolean> {
-  return sshWriteFile(PVE_HOST, remotePath, content);
+  return sshWriteFile(host(), remotePath, content);
 }
-
-export { PVE_HOST };

@@ -1,21 +1,30 @@
-export const NODES = ["pve", "pve2"] as const;
+import { readFileSync } from "fs";
+import { join } from "path";
 
-export const STORAGE_MODE_MAP: Record<string, "snapshot" | "stop"> = {
-  "local-zfs": "snapshot",
-  storage: "stop",
-  NAS: "stop",
-};
+export interface Config {
+  pveHost: string;
+  snapshotStorage: string[];
+  backupTarget: string;
+  schedule: {
+    snapshot: string;
+    stop: string;
+  };
+}
 
-export const BACKUP_TARGET = "PBS";
+const CONFIG_PATH = join(import.meta.dir, "..", "config.json");
 
-export const SCHEDULE = {
-  snapshot: "3:00",
-  stop: "6:30",
-  nas: "7:00",
-} as const;
+let _config: Config | null = null;
 
-export const TAG_SNAPSHOT = "backup-snapshot";
-export const TAG_STOP = "backup-stop";
+export function loadConfig(): Config {
+  if (_config) return _config;
 
-export const LOG_FILE = "/var/log/pve-backup-validator.log";
-export const JOBS_FILE = "/etc/pve/jobs.cfg";
+  try {
+    const raw = readFileSync(CONFIG_PATH, "utf-8");
+    _config = JSON.parse(raw) as Config;
+    return _config!;
+  } catch {
+    throw new Error(
+      "config.json not found. Run `bun run install` to configure the project."
+    );
+  }
+}

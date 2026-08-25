@@ -1,8 +1,7 @@
-import { pveExec, pveExecSafe, pveWriteFile } from "./ssh.js";
-import { classifyGuest, fixMpBackup } from "./classify.js";
-import { updateTags } from "./tags.js";
+import { pveExecSafe, pveWriteFile } from "./ssh.js";
+import { classifyGuest } from "./classify.js";
 import { generateJobsCfg, summarizeJobs } from "./jobs.js";
-import { JOBS_FILE } from "./config.js";
+import { loadConfig } from "./config.js";
 import type { ClassifiedGuest } from "./schemas.js";
 
 function log(message: string): void {
@@ -43,14 +42,14 @@ async function getAllGuests(): Promise<GuestRef[]> {
 }
 
 export async function main() {
+  const config = loadConfig();
   log("=== PVE Backup Validator started ===");
+  log(`Host: ${config.pveHost}`);
 
   const guestList = await getAllGuests();
   log(`Found ${guestList.length} guests across cluster`);
 
   const classified: ClassifiedGuest[] = [];
-  const tagUpdates: { vmid: string; changed: boolean }[] = [];
-  const mpFixes: { vmid: string; fixes: string[] }[] = [];
 
   for (const g of guestList) {
     const result = await classifyGuest(g.node, g.vmid, g.type);
@@ -59,37 +58,25 @@ export async function main() {
       continue;
     }
     classified.push(result);
-
-    const tagUpdate = await updateTags(result);
-    tagUpdates.push({ vmid: result.vmid, changed: tagUpdate.changed });
-    if (tagUpdate.changed) {
-      log(`  TAG ${result.vmid}: [${tagUpdate.oldTags.join(",")}] → [${tagUpdate.newTags.join(",")}]`);
-    }
-
-    const fixes = await fixMpBackup(result);
-    if (fixes.length > 0) {
-      mpFixes.push({ vmid: result.vmid, fixes });
-      log(`  MP FIX ${result.vmid}: ${fixes.join("; ")}`);
-    }
   }
 
   log("");
   log(summarizeJobs(classified));
 
   const jobsCfg = generateJobsCfg(classified);
+  const JOBS_FILE = "/etc/pve/jobs.cfg";
   await pveWriteFile(JOBS_FILE, jobsCfg);
   log(`\nWrote ${JOBS_FILE} with ${classified.filter((g) => g.mode !== "skip").length} guests`);
 
-  await pveExec("pvescheduler restart 2>/dev/null");
+  await pveExecSafe("pvescheduler restart 2>/dev/null");
   log("Scheduler restarted");
 
-  const changedTags = tagUpdates.filter((t) => t.changed).length;
-  const changedMps = mpFixes.filter((m) => m.fixes.length > 0).length;
-  log(`\nSummary: ${classified.length} guests classified, ${changedTags} tags updated, ${changedMps} mount points fixed`);
+  const snapshotCount = classified.filter((g) => g.mode === "snapshot").length;
+  const stopCount = classified.filter((g) => g.mode === "stop").length;
+  log(`\nSummary: ${classified.length} guests classified (${snapshotCount} snapshot, ${stopCount} stop)`);
   log("=== Done ===");
 }
 
-// CLI entry point
 if (import.meta.main) {
   main().catch((err) => {
     log(`ERROR: ${err.message}`);

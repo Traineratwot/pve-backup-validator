@@ -4,10 +4,14 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/index.ts",
-    "install:cron": "bun run src/install.ts",
+    "setup": "bun run src/install.ts",
+    "install:cron": "bun run src/install-cron.ts",
     "uninstall:cron": "bun run src/uninstall.ts"
   },
   "dependencies": {
-    "valibot": "^1.0.0"
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0"
   }
 }
