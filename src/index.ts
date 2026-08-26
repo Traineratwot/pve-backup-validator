@@ -95,8 +95,14 @@ export async function main() {
     `\nWrote ${JOBS_FILE} with ${classified.filter((g) => g.mode !== "skip").length} guests (preserved ${manualJobs.length} manual jobs)`
   );
 
-  await pveExecSafe("pvescheduler restart 2>/dev/null");
-  log("Scheduler restarted");
+  const { ok: schedOk, stderr: schedErr } = await pveExecSafe(
+    "systemctl restart pvescheduler"
+  );
+  if (schedOk) {
+    log("Scheduler restarted");
+  } else {
+    log(`WARN: Scheduler restart failed: ${schedErr}`);
+  }
 
   const snapshotCount = classified.filter((g) => g.mode === "snapshot").length;
   const stopCount = classified.filter((g) => g.mode === "stop").length;

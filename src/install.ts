@@ -5,9 +5,9 @@ import { execSync } from "child_process";
 
 const CONFIG_PATH = join(import.meta.dir, "..", "config.json");
 
-export function timeToCron(time: string): string {
+export function timeToSystemd(time: string): string {
   const [h, m] = time.split(":");
-  return `${parseInt(m)} ${parseInt(h)} * * *`;
+  return `*-*-* ${String(parseInt(h)).padStart(2, "0")}:${String(parseInt(m)).padStart(2, "0")}:00`;
 }
 
 export function hasTool(tool: string): boolean {
@@ -177,8 +177,8 @@ async function run() {
     snapshotStorage,
     backupTarget: response.backupTarget.trim(),
     schedule: {
-      snapshot: timeToCron(response.snapshotTime),
-      stop: timeToCron(response.stopTime),
+      snapshot: timeToSystemd(response.snapshotTime),
+      stop: timeToSystemd(response.stopTime),
     },
   };
 
