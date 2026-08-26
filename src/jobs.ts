@@ -108,12 +108,12 @@ export function parseExistingJobsCfg(cfgContent: string): {
 
 export async function readExistingJobsCfg(
   jobsFile: string
-): Promise<{ autoJobs: string[]; manualJobs: string[] }> {
+): Promise<{ autoJobs: string[]; manualJobs: string[]; existingRaw: string }> {
   const { ok, stdout } = await pveExecSafe(`cat "${jobsFile}" 2>/dev/null`);
   if (!ok || !stdout) {
-    return { autoJobs: [], manualJobs: [] };
+    return { autoJobs: [], manualJobs: [], existingRaw: "" };
   }
-  return parseExistingJobsCfg(stdout);
+  return { ...parseExistingJobsCfg(stdout), existingRaw: stdout };
 }
 
 export function generateJobsCfg(

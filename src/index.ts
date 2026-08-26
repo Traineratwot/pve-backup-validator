@@ -86,22 +86,28 @@ export async function main() {
   log(summarizeJobs(classified));
 
   const JOBS_FILE = "/etc/pve/jobs.cfg";
-  const { manualJobs } = await readExistingJobsCfg(JOBS_FILE);
+  const { manualJobs, existingRaw } = await readExistingJobsCfg(JOBS_FILE);
   log(`Found ${manualJobs.length} existing manual jobs to preserve`);
 
   const jobsCfg = generateJobsCfg(classified, manualJobs);
-  await pveWriteFile(JOBS_FILE, jobsCfg);
-  log(
-    `\nWrote ${JOBS_FILE} with ${classified.filter((g) => g.mode !== "skip").length} guests (preserved ${manualJobs.length} manual jobs)`
-  );
+  const jobsChanged = jobsCfg !== existingRaw;
 
-  const { ok: schedOk, stderr: schedErr } = await pveExecSafe(
-    "systemctl restart pvescheduler"
-  );
-  if (schedOk) {
-    log("Scheduler restarted");
+  if (jobsChanged) {
+    await pveWriteFile(JOBS_FILE, jobsCfg);
+    log(
+      `\nWrote ${JOBS_FILE} with ${classified.filter((g) => g.mode !== "skip").length} guests (preserved ${manualJobs.length} manual jobs)`
+    );
+
+    const { ok: schedOk, stderr: schedErr } = await pveExecSafe(
+      "systemctl restart pvescheduler"
+    );
+    if (schedOk) {
+      log("Scheduler restarted");
+    } else {
+      log(`WARN: Scheduler restart failed: ${schedErr}`);
+    }
   } else {
-    log(`WARN: Scheduler restart failed: ${schedErr}`);
+    log(`\n${JOBS_FILE} unchanged, scheduler restart skipped`);
   }
 
   const snapshotCount = classified.filter((g) => g.mode === "snapshot").length;
