@@ -1,5 +1,6 @@
 import type { ClassifiedGuest } from "./schemas.js";
 import { loadConfig } from "./config.js";
+import { pveExecSafe } from "./ssh.js";
 
 export interface JobDefinition {
   id: string;
@@ -82,10 +83,49 @@ export function jobToConfig(job: JobDefinition): string {
   return lines.join("\n");
 }
 
-export function generateJobsCfg(guests: ClassifiedGuest[]): string {
+export function parseExistingJobsCfg(cfgContent: string): {
+  autoJobs: string[];
+  manualJobs: string[];
+} {
+  const autoJobs: string[] = [];
+  const manualJobs: string[] = [];
+
+  const blocks = cfgContent.split(/(?=^vzdump: )/m).filter((b) => b.trim());
+
+  for (const block of blocks) {
+    const isAuto =
+      block.includes("BACKUP-SNAPSHOT (auto-generated)") ||
+      block.includes("BACKUP-STOP (auto-generated)");
+    if (isAuto) {
+      autoJobs.push(block);
+    } else {
+      manualJobs.push(block);
+    }
+  }
+
+  return { autoJobs, manualJobs };
+}
+
+export async function readExistingJobsCfg(
+  jobsFile: string
+): Promise<{ autoJobs: string[]; manualJobs: string[] }> {
+  const { ok, stdout } = await pveExecSafe(`cat "${jobsFile}" 2>/dev/null`);
+  if (!ok || !stdout) {
+    return { autoJobs: [], manualJobs: [] };
+  }
+  return parseExistingJobsCfg(stdout);
+}
+
+export function generateJobsCfg(
+  guests: ClassifiedGuest[],
+  existingManualJobs: string[]
+): string {
   const config = loadConfig();
   const jobs = buildJobs(guests, config.schedule, config.backupTarget);
-  return jobs.map(jobToConfig).join("\n\n") + "\n";
+  const autoConfig = jobs.map(jobToConfig).join("\n\n");
+
+  const parts = [...existingManualJobs, autoConfig].filter((p) => p.trim());
+  return parts.join("\n\n") + "\n";
 }
 
 export function summarizeJobs(guests: ClassifiedGuest[]): string {

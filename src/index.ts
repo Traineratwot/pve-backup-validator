@@ -1,6 +1,10 @@
 import { pveExecSafe, pveWriteFile } from "./ssh.js";
 import { classifyGuest } from "./classify.js";
-import { generateJobsCfg, summarizeJobs } from "./jobs.js";
+import {
+  generateJobsCfg,
+  readExistingJobsCfg,
+  summarizeJobs,
+} from "./jobs.js";
 import { loadConfig } from "./config.js";
 import type { ClassifiedGuest } from "./schemas.js";
 
@@ -81,11 +85,14 @@ export async function main() {
   log("");
   log(summarizeJobs(classified));
 
-  const jobsCfg = generateJobsCfg(classified);
   const JOBS_FILE = "/etc/pve/jobs.cfg";
+  const { manualJobs } = await readExistingJobsCfg(JOBS_FILE);
+  log(`Found ${manualJobs.length} existing manual jobs to preserve`);
+
+  const jobsCfg = generateJobsCfg(classified, manualJobs);
   await pveWriteFile(JOBS_FILE, jobsCfg);
   log(
-    `\nWrote ${JOBS_FILE} with ${classified.filter((g) => g.mode !== "skip").length} guests`
+    `\nWrote ${JOBS_FILE} with ${classified.filter((g) => g.mode !== "skip").length} guests (preserved ${manualJobs.length} manual jobs)`
   );
 
   await pveExecSafe("pvescheduler restart 2>/dev/null");
